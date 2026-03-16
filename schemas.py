@@ -1,6 +1,14 @@
 from pydantic import BaseModel, EmailStr, field_validator
 
 
+# ── Address ────────────────────────────────────────────────────────────────────
+
+class Address(BaseModel):
+    street: str | None = None
+    city: str | None = None
+    zipcode: str | None = None
+
+
 # ── Shared validators ──────────────────────────────────────────────────────────
 
 def _non_empty(v: str | None, field_name: str) -> str:
@@ -12,10 +20,13 @@ def _non_empty(v: str | None, field_name: str) -> str:
 # ── Request schemas ────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):
-    """Used on POST /users — all fields required."""
+    """Used on POST /users — name, username, email required."""
     name: str
     username: str
     email: EmailStr
+    phone: str | None = None
+    website: str | None = None
+    address: Address | None = None
 
     @field_validator("name")
     @classmethod
@@ -29,10 +40,13 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    """Used on PUT /users/{id} — all fields required (full replace)."""
+    """Used on PUT /users/{id} — all core fields required (full replace)."""
     name: str
     username: str
     email: EmailStr
+    phone: str | None = None
+    website: str | None = None
+    address: Address | None = None
 
     @field_validator("name")
     @classmethod
@@ -50,6 +64,9 @@ class UserPatch(BaseModel):
     name: str | None = None
     username: str | None = None
     email: EmailStr | None = None
+    phone: str | None = None
+    website: str | None = None
+    address: Address | None = None
 
     @field_validator("name")
     @classmethod
@@ -70,5 +87,24 @@ class UserResponse(BaseModel):
     name: str
     username: str
     email: str
+    phone: str | None = None
+    website: str | None = None
+    address: Address | None = None
 
-    model_config = {"from_attributes": True}  # allows ORM → Pydantic conversion
+    @classmethod
+    def from_orm(cls, user):
+        return cls(
+            id=user.id,
+            name=user.name,
+            username=user.username,
+            email=user.email,
+            phone=user.phone,
+            website=user.website,
+            address=Address(
+                street=user.street,
+                city=user.city,
+                zipcode=user.zipcode,
+            ) if any([user.street, user.city, user.zipcode]) else None,
+        )
+
+    model_config = {"from_attributes": True}

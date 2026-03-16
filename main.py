@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -34,7 +33,7 @@ app = FastAPI(
         "Full CRUD for a /users resource with input validation, SQLite persistence, "
         "and rate limiting. Source: https://github.com/GCarlomagno/qa-live-api"
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -52,13 +51,16 @@ def _get_user_or_404(user_id: int, db: Session) -> User:
 
 
 def _handle_integrity_error(exc: IntegrityError) -> None:
-    """Translate SQLAlchemy unique-constraint violations into 409 responses."""
     msg = str(exc.orig).lower()
     if "username" in msg:
         raise HTTPException(status_code=409, detail="Username already exists")
     if "email" in msg:
         raise HTTPException(status_code=409, detail="Email already exists")
     raise HTTPException(status_code=409, detail="Duplicate value on a unique field")
+
+
+def _user_to_response(user: User) -> UserResponse:
+    return UserResponse.from_orm(user)
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ def root(request: Request):
     """API info and link to interactive docs."""
     return {
         "name": "QA Live API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "docs": "/docs",
         "redoc": "/redoc",
         "health": "/health",
@@ -95,14 +97,25 @@ def list_users(
     db: Session = Depends(get_db),
 ):
     """Return a paginated list of users."""
-    return db.query(User).offset(skip).limit(limit).all()
+    users = db.query(User).offset(skip).limit(limit).all()
+    return [_user_to_response(u) for u in users]
 
 
 @app.post("/users", response_model=UserResponse, status_code=201, tags=["Users"])
 @limiter.limit("100/minute")
 def create_user(request: Request, payload: UserCreate, db: Session = Depends(get_db)):
     """Create a new user. Returns the created object with its assigned id."""
-    user = User(**payload.model_dump())
+    address = payload.address
+    user = User(
+        name=payload.name,
+        username=payload.username,
+        email=payload.email,
+        phone=payload.phone,
+        website=payload.website,
+        street=address.street if address else None,
+        city=address.city if address else None,
+        zipcode=address.zipcode if address else None,
+    )
     db.add(user)
     try:
         db.commit()
@@ -110,14 +123,14 @@ def create_user(request: Request, payload: UserCreate, db: Session = Depends(get
     except IntegrityError as exc:
         db.rollback()
         _handle_integrity_error(exc)
-    return user
+    return _user_to_response(user)
 
 
 @app.get("/users/{user_id}", response_model=UserResponse, tags=["Users"])
 @limiter.limit("100/minute")
 def get_user(request: Request, user_id: int, db: Session = Depends(get_db)):
     """Fetch a single user by id."""
-    return _get_user_or_404(user_id, db)
+    return _user_to_response(_get_user_or_404(user_id, db))
 
 
 @app.put("/users/{user_id}", response_model=UserResponse, tags=["Users"])
@@ -130,15 +143,22 @@ def replace_user(
 ):
     """Full replacement of a user's fields."""
     user = _get_user_or_404(user_id, db)
-    for field, value in payload.model_dump().items():
-        setattr(user, field, value)
+    address = payload.address
+    user.name = payload.name
+    user.username = payload.username
+    user.email = payload.email
+    user.phone = payload.phone
+    user.website = payload.website
+    user.street = address.street if address else None
+    user.city = address.city if address else None
+    user.zipcode = address.zipcode if address else None
     try:
         db.commit()
         db.refresh(user)
     except IntegrityError as exc:
         db.rollback()
         _handle_integrity_error(exc)
-    return user
+    return _user_to_response(user)
 
 
 @app.patch("/users/{user_id}", response_model=UserResponse, tags=["Users"])
@@ -155,14 +175,23 @@ def patch_user(
     if not updates:
         raise HTTPException(status_code=422, detail="Request body must include at least one field")
     for field, value in updates.items():
-        setattr(user, field, value)
+        if field == "address" and value is not None:
+            addr = payload.address
+            if addr.street is not None:
+                user.street = addr.street
+            if addr.city is not None:
+                user.city = addr.city
+            if addr.zipcode is not None:
+                user.zipcode = addr.zipcode
+        elif field != "address":
+            setattr(user, field, value)
     try:
         db.commit()
         db.refresh(user)
     except IntegrityError as exc:
         db.rollback()
         _handle_integrity_error(exc)
-    return user
+    return _user_to_response(user)
 
 
 @app.delete("/users/{user_id}", tags=["Users"])
