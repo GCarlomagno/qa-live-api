@@ -35,6 +35,7 @@ app = FastAPI(
     ),
     version="2.0.0",
     lifespan=lifespan,
+    servers=[{"url": "https://api.testacode.com", "description": "Production"}],
 )
 
 app.state.limiter = limiter
