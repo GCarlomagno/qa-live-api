@@ -4,9 +4,9 @@ A **live, publicly accessible REST API** built as a QA portfolio project — des
 
 If you are a QA student looking for a real API to practice against, you are in the right place. No sign-up, no API keys, no setup required.
 
-**Live URL:** http://api.testacode.com  
-**Swagger UI:** http://api.testacode.com/docs  
-**ReDoc:** http://api.testacode.com/redoc  
+**Live URL:** https://api.testacode.com  
+**Swagger UI:** https://api.testacode.com/docs  
+**ReDoc:** https://api.testacode.com/redoc  
 **GitHub:** https://github.com/GCarlomagno/qa-live-api
 
 ---
