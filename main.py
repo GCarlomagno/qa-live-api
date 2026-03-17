@@ -26,16 +26,26 @@ async def lifespan(app: FastAPI):
 
 # ── App instance ───────────────────────────────────────────────────────────────
 
+description = """
+A live, publicly accessible REST API built as a QA portfolio project.
+
+Full CRUD for a **/users** resource — designed as a real test basis for Postman / Newman test suites.
+
+- 10 seed users reset daily at **03:00 UTC**
+- Input validation with proper HTTP status codes
+- Rate limiting: 100 requests/min per IP
+
+**Swagger UI tip:** Use *Try it out* on any endpoint to send real requests against the live API.
+
+**Source:** https://github.com/GCarlomagno/qa-live-api
+"""
+
 app = FastAPI(
-    title="QA Live API",
-    description=(
-        "A live, publicly accessible REST API built as a QA portfolio project. "
-        "Full CRUD for a /users resource with input validation, SQLite persistence, "
-        "and rate limiting. Source: https://github.com/GCarlomagno/qa-live-api"
-    ),
+    title="Swagger QA Live API",
+    description=description,
     version="2.0.0",
     lifespan=lifespan,
-    servers=[{"url": "https://api.testacode.com", "description": "Production"}],
+    servers=[{"url": "https://api.testacode.com", "description": "Live API"}],
 )
 
 app.state.limiter = limiter
