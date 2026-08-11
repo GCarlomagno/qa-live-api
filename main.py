@@ -7,6 +7,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from auth import router as auth_router
 from database import get_db, init_db
 from models import User
 from schemas import UserCreate, UserPatch, UserResponse, UserUpdate
@@ -47,6 +48,8 @@ app = FastAPI(
     lifespan=lifespan,
     servers=[{"url": "https://api.testacode.com", "description": "Live API"}],
 )
+
+app.include_router(auth_router)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
