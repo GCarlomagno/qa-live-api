@@ -2,12 +2,19 @@
 
 A **live, publicly accessible REST API** built as a QA portfolio project — designed as a real test basis for Postman / Newman test suites.
 
-If you are a QA student looking for a real API to practice against, you are in the right place. No sign-up, no API keys, no setup required.
+If you are a QA student looking for a real API to practice against, you are in the right place. Most endpoints are public and require no sign-up. The API also includes a JWT Bearer authentication flow specifically for practising authenticated API testing with Postman and Newman.
 
-**Live URL:** https://api.testacode.com  
-**Swagger UI:** https://api.testacode.com/docs  
-**ReDoc:** https://api.testacode.com/redoc  
-**GitHub:** https://github.com/GCarlomagno/qa-live-api
+**Live URL (public endpoints):** [https://api.testacode.com](https://api.testacode.com)
+
+**Authentication endpoint:** [https://api.testacode.com/auth/login](https://api.testacode.com/auth/login)  
+**Demo username:** `qauser`  
+**Demo password:** `Test123!`
+
+**Swagger UI:** [https://api.testacode.com/docs](https://api.testacode.com/docs)
+
+**ReDoc:** [https://api.testacode.com/redoc](https://api.testacode.com/redoc)
+
+**GitHub:** [https://github.com/GCarlomagno/qa-live-api](https://github.com/GCarlomagno/qa-live-api)
 
 ---
 
@@ -29,21 +36,19 @@ The seed data contains **intentional defects**. Part of the exercise is designin
 
 The system under test (SUT) manages users with the following structure:
 
-```json
-{
-  "id": 1,
-  "name": "Alice Smith",
-  "username": "alicesmith",
-  "email": "alice.smith@example.com",
-  "phone": "+351 912 345 678",
-  "website": "http://alice.example.com",
-  "address": {
-    "street": "10 Rua Augusta",
-    "city": "Lisbon",
-    "zipcode": "1100-048"
-  }
-}
-```
+    {
+      "id": 1,
+      "name": "Alice Smith",
+      "username": "alicesmith",
+      "email": "alice.smith@example.com",
+      "phone": "+351 912 345 678",
+      "website": "http://alice.example.com",
+      "address": {
+        "street": "10 Rua Augusta",
+        "city": "Lisbon",
+        "zipcode": "1100-048"
+      }
+    }
 
 ### Seed data — known test fixtures
 
@@ -74,6 +79,8 @@ Use ids 11+ for test users created during test execution to avoid conflicts with
 |---|---|---|---|
 | GET | `/` | API info + links | 200 |
 | GET | `/health` | Health check | 200 |
+| POST | `/auth/login` | Authenticate and receive a JWT Bearer token | 200 |
+| GET | `/auth/me` | Return the authenticated test user | 200 |
 | GET | `/users` | List all users (`?skip=&limit=`) | 200 |
 | POST | `/users` | Create a user | 201 |
 | GET | `/users/{id}` | Get user by id | 200 |
@@ -96,6 +103,59 @@ These rules define the **valid equivalence partitions** for each field:
 | `address.city` | No | No | String |
 | `address.zipcode` | No | No | String |
 
+### Authentication
+
+The API includes a JWT Bearer authentication flow specifically for practising authenticated API testing.
+
+Demo credentials:
+
+    username: qauser
+    password: Test123!
+
+To authenticate, send:
+
+    POST /auth/login
+    Content-Type: application/x-www-form-urlencoded
+
+with:
+
+    username=qauser&password=Test123!
+
+A successful login returns:
+
+    {
+      "access_token": "<JWT>",
+      "token_type": "bearer"
+    }
+
+Use the returned token when calling protected endpoints:
+
+    Authorization: Bearer <JWT>
+
+The protected endpoint:
+
+    GET /auth/me
+
+returns:
+
+    {
+      "username": "qauser",
+      "full_name": "QA Test User",
+      "role": "tester"
+    }
+
+Authentication test conditions:
+
+- Valid credentials → `200 OK`
+- Incorrect password → `401 Unauthorized`
+- Unknown username → `401 Unauthorized`
+- Missing Bearer token → `401 Unauthorized`
+- Invalid Bearer token → `401 Unauthorized`
+- Expired Bearer token → `401 Unauthorized`
+- Valid Bearer token → protected resource returned
+
+Access tokens expire after **30 minutes**.
+
 ### HTTP response code catalogue
 
 | Condition | Expected result |
@@ -104,6 +164,7 @@ These rules define the **valid equivalence partitions** for each field:
 | Valid request — POST | 201 Created |
 | Valid request — PUT or PATCH | 200 OK |
 | Invalid input — missing or malformed field | 422 Unprocessable Entity |
+| Missing, invalid, or expired authentication token | 401 Unauthorized |
 | Non-existent resource | 404 Not Found |
 | Duplicate unique field (username or email) | 409 Conflict |
 | Rate limit exceeded (> 100 requests/min per IP) | 429 Too Many Requests |
@@ -117,9 +178,11 @@ These rules define the **valid equivalence partitions** for each field:
 Based on the input validation rules, the following equivalence classes apply to POST /users:
 
 **Valid partition (expected result: 201 Created)**
+
 - All required fields present, non-empty, valid email, unique username and email
 
 **Invalid partitions (expected result: 422 Unprocessable Entity)**
+
 - Missing `name`
 - Missing `username`
 - Missing `email`
@@ -127,6 +190,7 @@ Based on the input validation rules, the following equivalence classes apply to 
 - Malformed email format (e.g. `notanemail`, `user@`, `user@domain`)
 
 **Invalid partition (expected result: 409 Conflict)**
+
 - `username` already exists in the database
 - `email` already exists in the database
 
@@ -204,86 +268,111 @@ For each user returned by GET /users and GET /users/{id}, verify:
 | TC-25 | POST → DELETE → GET | Create user, DELETE it, GET it, assert 404 |
 | TC-26 | POST → PATCH → GET | Create user, PATCH one field, GET it, assert only that field changed |
 
+### Authentication test cases
+
+| TC ID | Test condition | Steps | Expected result |
+|---|---|---|---|
+| TC-27 | Login with valid credentials | POST `/auth/login` with valid username/password | 200, JWT returned |
+| TC-28 | Login with incorrect password | POST `/auth/login` with wrong password | 401 Unauthorized |
+| TC-29 | Login with unknown username | POST `/auth/login` with unknown username | 401 Unauthorized |
+| TC-30 | Access protected endpoint with valid token | GET `/auth/me` with Bearer token | 200, authenticated user returned |
+| TC-31 | Access protected endpoint without token | GET `/auth/me` without Authorization header | 401 Unauthorized |
+| TC-32 | Access protected endpoint with invalid token | GET `/auth/me` with invalid Bearer token | 401 Unauthorized |
+| TC-33 | Access protected endpoint with expired token | GET `/auth/me` using expired JWT | 401 Unauthorized |
+
 ---
 
 ## curl examples
 
-```bash
-# Health check
-curl http://api.testacode.com/health
+    # Health check
+    curl https://api.testacode.com/health
 
-# List all users
-curl http://api.testacode.com/users
+    # Login and receive a JWT Bearer token
+    curl -X POST https://api.testacode.com/auth/login \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=qauser&password=Test123!"
 
-# Paginate — skip first 2, return next 2
-curl "http://api.testacode.com/users?skip=2&limit=2"
+    # Access protected endpoint
+    curl https://api.testacode.com/auth/me \
+      -H "Authorization: Bearer YOUR_TOKEN_HERE"
 
-# Get one user
-curl http://api.testacode.com/users/1
+    # Trigger 401 — missing authentication token
+    curl -i https://api.testacode.com/auth/me
 
-# Create a user with nested address
-curl -X POST http://api.testacode.com/users \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Jane Doe",
-    "username": "janedoe",
-    "email": "jane.doe@example.com",
-    "phone": "+351 999 888 777",
-    "website": "http://janedoe.com",
-    "address": {
-      "street": "5 Test Street",
-      "city": "Porto",
-      "zipcode": "4000-001"
-    }
-  }'
+    # Trigger 401 — invalid authentication token
+    curl -i https://api.testacode.com/auth/me \
+      -H "Authorization: Bearer invalid-token"
 
-# Full replace
-curl -X PUT http://api.testacode.com/users/11 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Jane Doe",
-    "username": "janedoe",
-    "email": "jane.doe@example.com"
-  }'
+    # List all users
+    curl https://api.testacode.com/users
 
-# Partial update
-curl -X PATCH http://api.testacode.com/users/11 \
-  -H "Content-Type: application/json" \
-  -d '{"phone": "+351 111 222 333"}'
+    # Paginate — skip first 2, return next 2
+    curl "https://api.testacode.com/users?skip=2&limit=2"
 
-# Delete
-curl -X DELETE http://api.testacode.com/users/11
+    # Get one user
+    curl https://api.testacode.com/users/1
 
-# Trigger 404
-curl http://api.testacode.com/users/9999
+    # Create a user with nested address
+    curl -X POST https://api.testacode.com/users \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Jane Doe",
+        "username": "janedoe",
+        "email": "jane.doe@example.com",
+        "phone": "+351 999 888 777",
+        "website": "http://janedoe.com",
+        "address": {
+          "street": "5 Test Street",
+          "city": "Porto",
+          "zipcode": "4000-001"
+        }
+      }'
 
-# Trigger 422 — missing email
-curl -X POST http://api.testacode.com/users \
-  -H "Content-Type: application/json" \
-  -d '{"name":"No Email","username":"noemail"}'
+    # Full replace
+    curl -X PUT https://api.testacode.com/users/11 \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Jane Doe",
+        "username": "janedoe",
+        "email": "jane.doe@example.com"
+      }'
 
-# Trigger 409 — duplicate username
-curl -X POST http://api.testacode.com/users \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Alice Copy","username":"alicesmith","email":"copy@example.com"}'
-```
+    # Partial update
+    curl -X PATCH https://api.testacode.com/users/11 \
+      -H "Content-Type: application/json" \
+      -d '{"phone": "+351 111 222 333"}'
+
+    # Delete
+    curl -X DELETE https://api.testacode.com/users/11
+
+    # Trigger 404
+    curl https://api.testacode.com/users/9999
+
+    # Trigger 422 — missing email
+    curl -X POST https://api.testacode.com/users \
+      -H "Content-Type: application/json" \
+      -d '{"name":"No Email","username":"noemail"}'
+
+    # Trigger 409 — duplicate username
+    curl -X POST https://api.testacode.com/users \
+      -H "Content-Type: application/json" \
+      -d '{"name":"Alice Copy","username":"alicesmith","email":"copy@example.com"}'
 
 ---
 
 ## Running locally
 
-```bash
-git clone https://github.com/GCarlomagno/qa-live-api.git
-cd qa-live-api
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-mkdir -p data
-python seed.py
-uvicorn main:app --reload
-```
+    git clone https://github.com/GCarlomagno/qa-live-api.git
+    cd qa-live-api
+    python -m venv venv
+    source venv/bin/activate        # Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    mkdir -p data
+    python seed.py
+    export JWT_SECRET_KEY="$(openssl rand -hex 32)"
+    uvicorn main:app --reload
 
-Open http://localhost:8000/docs to access the local Swagger UI.
+Open [http://localhost:8000/docs](http://localhost:8000/docs) to access the local Swagger UI.
 
 ---
 
@@ -310,6 +399,8 @@ Open http://localhost:8000/docs to access the local Swagger UI.
 |---|---|
 | Language | Python 3.11 |
 | Framework | FastAPI |
+| Authentication | JWT Bearer (PyJWT) |
+| Password hashing | Argon2 via pwdlib |
 | Database | SQLite via SQLAlchemy |
 | Server | Uvicorn |
 | Process manager | PM2 |
