@@ -315,4 +315,4 @@ Open http://localhost:8000/docs to access the local Swagger UI.
 | Process manager | PM2 |
 | Reverse proxy | Nginx |
 | Rate limiting | slowapi (100 req/min per IP) |
-| Seed reset | Daily cron at 03:00 UTC |
+| Seed reset | Daily cron at 03:00 UTC |<!-- VPS credential helper test -->
